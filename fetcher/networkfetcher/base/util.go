@@ -1,4 +1,4 @@
-package networkfetcher
+package base
 
 import (
 	"bytes"
@@ -26,10 +26,6 @@ func ParseIpAndPort2TCPAddr(ip string, port string) (*net.TCPAddr, error) {
 	return &net.TCPAddr{IP: ip1, Port: port1}, nil
 }
 
-func generateCaptureName(deviceName string, catogery captureType) string {
-	return fmt.Sprintf("{%s}-{%s}", deviceName, catogery.String())
-}
-
 func GenerateBPFStr(addrs []net.Addr, isListenAddr bool) string {
 	//todo
 	return generateBPFV2(addrs)
@@ -38,23 +34,19 @@ func GenerateBPFStr(addrs []net.Addr, isListenAddr bool) string {
 func generateBPFV2(addrs []net.Addr) string {
 	inBpf := make([]string, 0)
 	outBpf := make([]string, 0)
-
 	inbpf := "(dst host %s and dst port %s)"
 	outbpf := "(src host %s and src port %s)"
-
 	for _, a := range addrs {
 		p := a.String()
 		i := strings.LastIndex(p, ":")
 		inBpf = append(inBpf, fmt.Sprintf(inbpf, p[0:i], p[i+1:]))
 		outBpf = append(outBpf, fmt.Sprintf(outbpf, p[0:i], p[i+1:]))
 	}
-
 	inRes := strings.Join(inBpf, " or ")
 	outRes := strings.Join(outBpf, " or ")
 	if len(inRes) == 0 {
 		return outRes
 	}
-
 	if len(outRes) == 0 {
 		return inRes
 	}
@@ -74,12 +66,13 @@ var deviceName string
 var deviceNameMutext sync.Mutex
 
 //get all devices traffic rate and chose the biggest one
+// if there is a agent , this method may return a wrong DeviceName (all traffic will go into a local agent first which use a loop(127.0.0.1) device)
 func GetNetDeviceName() (string, error) {
 	deviceNameMutext.Lock()
+	deviceNameMutext.Unlock()
 	if deviceName != "" {
 		return deviceName, nil
 	}
-	deviceNameMutext.Unlock()
 	devices, err := pcap.FindAllDevs()
 	if err != nil {
 		return "", err

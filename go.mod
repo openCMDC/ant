@@ -1,4 +1,4 @@
-module mantis
+module ant
 
 go 1.13
 

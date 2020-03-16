@@ -1,4 +1,4 @@
-package networkfetcher
+package base
 
 import (
 	"bufio"
@@ -20,8 +20,10 @@ func FetchAppNetworkInfo(pid string) ([]net.Addr, []net.Addr) {
 		return fetchInfo4Linux(pid)
 	} else if runtime.GOOS == "darwin" {
 		return fetchInfo4Darwin(pid)
+	} else if runtime.GOOS == "windows" {
+		return fetchInfo4Windows(pid)
 	} else {
-		log.Fatalf("unSupported OS type {%s}", runtime.GOOS)
+		log.WithField("os", runtime.GOOS).Errorf("unSupported OS type")
 		return []net.Addr{}, []net.Addr{}
 	}
 }
@@ -105,7 +107,7 @@ func fetchInfo4Darwin(pid string) ([]net.Addr, []net.Addr) {
 	}
 	res := string(out.Bytes())
 	lines := strings.Split(res, "\n")
-	listenports := make(map[string]bool)
+	listenAddr := make(map[string]bool)
 	var listenArr []net.Addr
 	var connPair [][2]net.Addr
 	for _, line := range lines {
@@ -128,13 +130,11 @@ func fetchInfo4Darwin(pid string) ([]net.Addr, []net.Addr) {
 				continue
 			}
 			listenArr = append(listenArr, addr)
-			listenports[fields[8][i+1:]] = true
+			listenAddr[addr.String()] = true
 		} else {
 			ipPorts := strings.Split(fields[8], "->")
-			ls := strings.LastIndex(ipPorts[0], ":")
-			rs := strings.LastIndex(ipPorts[1], ":")
-			lisAddrStr := ipPorts[0][0:ls] + ":" + ipPorts[0][ls+1:]
-			connAddrStr := ipPorts[1][0:rs] + ":" + ipPorts[1][rs+1:]
+			lisAddrStr := ipPorts[0]
+			connAddrStr := ipPorts[1]
 			lisAddr, err := net.ResolveTCPAddr("tcp", lisAddrStr)
 			if err != nil {
 				log.WithField("srcStr", lisAddrStr).
@@ -151,25 +151,75 @@ func fetchInfo4Darwin(pid string) ([]net.Addr, []net.Addr) {
 		}
 	}
 	var connectArr []net.Addr
-	tempMap := make(map[string]bool)
 	for _, conn := range connPair {
 		tcp, success := conn[0].(*net.TCPAddr)
 		if !success {
 			continue
 		}
 
-		if listenports[strconv.Itoa(tcp.Port)] != true {
-			tempMap[conn[1].String()] = true
+		if listenAddr[tcp.String()] != true {
+			connectArr = append(connectArr, conn[1])
 		}
 	}
-	for k, _ := range tempMap {
-		id, err := net.ResolveTCPAddr("", k)
-		if err != nil {
-			log.WithField("srcStr", k).
-				Warn("fail to parse string to tcp address")
+	return listenArr, connectArr
+}
+
+func fetchInfo4Windows(pid string) ([]net.Addr, []net.Addr) {
+	cmd := exec.Command("netstat", "-n", "-o", "-a", "-p", "tcp")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil, nil
+	}
+	lines := strings.Split(out.String(), "\r\n")
+	var listenArr []net.Addr
+	listenAddr := make(map[string]bool)
+	var connPair [][2]net.Addr
+	for _, line := range lines {
+		line := strings.Trim(line, " ")
+		if !strings.HasPrefix(line, "TCP") {
 			continue
 		}
-		connectArr = append(connectArr, id)
+		fields := strings.Fields(line)
+		if len(fields) != 5 {
+			continue
+		}
+		if fields[4] != pid {
+			continue
+		}
+		if fields[3] == "LISTENING" {
+			addr, err := net.ResolveTCPAddr("tcp", fields[1])
+			if err != nil {
+				log.WithField("srcStr", addr).
+					Warn("fail to parse string to tcp address")
+				continue
+			}
+			listenArr = append(listenArr, addr)
+			listenAddr[addr.String()] = true
+		} else {
+			la, err := net.ResolveTCPAddr("tcp", fields[1])
+			ra, err := net.ResolveTCPAddr("tcp", fields[2])
+			if err != nil {
+				log.WithFields(map[string]interface{}{
+					"localAddr":  fields[1],
+					"remoteAddr": fields[2],
+				}).Warn("fail to parse string to tcp address")
+				continue
+			}
+			connPair = append(connPair, [...]net.Addr{la, ra})
+		}
+	}
+	var connectArr []net.Addr
+	for _, conn := range connPair {
+		tcp, success := conn[0].(*net.TCPAddr)
+		if !success {
+			continue
+		}
+		if listenAddr[tcp.String()] != true {
+			connectArr = append(connectArr, conn[1])
+		}
 	}
 	return listenArr, connectArr
 }

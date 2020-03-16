@@ -1,6 +1,7 @@
 package networkfetcher
 
 import (
+	"ant/fetcher/networkfetcher/base"
 	"fmt"
 	"net"
 	"testing"
@@ -34,10 +35,16 @@ func TestNetInterfacesfunc(t *testing.T) {
 }
 
 func TestGetDeviceName(t *testing.T) {
-	deviceName, err := GetNetDeviceName()
+	deviceName, err := base.GetNetDeviceName()
 	if err != nil {
 		t.Fail()
 		return
 	}
 	fmt.Println(deviceName)
+}
+
+func TestGetNetInfoOnWindows(t *testing.T) {
+	//fmt.Println(base.fetchInfo4Windows("14740"))
+	m := make(map[string]uint64)
+	fmt.Println(m["hahha"])
 }

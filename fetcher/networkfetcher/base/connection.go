@@ -1,7 +1,10 @@
-package networkfetcher
+package base
 
-import "net"
-import log "github.com/sirupsen/logrus"
+import (
+	"ant/fetcher/base"
+	log "github.com/sirupsen/logrus"
+	"net"
+)
 
 type TCPConn struct {
 	clientAddr          *net.TCPAddr
@@ -9,6 +12,7 @@ type TCPConn struct {
 	client2ServerStream *ConcurrentReader
 	server2ClientStream *ConcurrentReader
 	started             bool
+	ctx                 *base.FetcherCtx
 }
 
 func (conn *TCPConn) GetClientAddr() *net.TCPAddr {
@@ -36,28 +40,28 @@ func (conn *TCPConn) CheckS2CStreamExist() bool {
 }
 
 func (conn *TCPConn) SetC2SStream(stream *StreamReader) {
-	if conn.client2ServerStream.Reader != nil {
+	if conn.client2ServerStream.reader != nil {
 		log.Warn("replace client to server stream which already existed is not allowed")
 		return
 	}
-	conn.client2ServerStream.Reader = stream
+	conn.client2ServerStream.reader = stream
 	conn.client2ServerStream.SetReaderReady()
 
 }
 
 func (conn *TCPConn) SetS2CStream(stream *StreamReader) {
-	if conn.server2ClientStream.Reader != nil {
+	if conn.server2ClientStream.reader != nil {
 		log.Warn("replace server to clietn stream which already existed is not allowed")
 		return
 	}
-	conn.server2ClientStream.Reader = stream
+	conn.server2ClientStream.reader = stream
 	conn.server2ClientStream.SetReaderReady()
 }
 
 func NewTCPConn(clientAddr, serverAddr *net.TCPAddr, c2sStream, s2cStream *StreamReader) *TCPConn {
 	return &TCPConn{clientAddr: clientAddr,
 		serverAddr:          serverAddr,
-		client2ServerStream: NewMutiCoroutineAccessReader(c2sStream),
-		server2ClientStream: NewMutiCoroutineAccessReader(s2cStream),
+		client2ServerStream: NewConcurrentReader(c2sStream),
+		server2ClientStream: NewConcurrentReader(s2cStream),
 		started:             false}
 }

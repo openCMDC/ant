@@ -1,4 +1,4 @@
-package networkfetcher
+package base
 
 import (
 	"fmt"
@@ -381,7 +381,7 @@ type AssemblerOptions struct {
 // must wait for that call to return before calling Assemble again.  Callers can
 // get around this by creating multiple assemblers that share a StreamPool.  In
 // that case, each individual stream will still be handled serially (each stream
-// has an individual mutex associated with it), however multiple assemblers can
+// has an individual cacheMutex associated with it), however multiple assemblers can
 // assemble different connections concurrently.
 //
 // The Assembler provides (hopefully) fast TCP stream re-assembly for sniffing
@@ -392,7 +392,7 @@ type AssemblerOptions struct {
 //
 // Assemblers locks connections, but each connection has an individual lock, and
 // rarely will two Assemblers be looking at the same connection.  Assemblers
-// lock the StreamPool when looking up connections, but they use Reader locks
+// lock the StreamPool when looking up connections, but they use reader locks
 // initially, and only force a write lock if they need to create a new
 // connection or close one down.  These happen much less frequently than
 // individual packet handling.

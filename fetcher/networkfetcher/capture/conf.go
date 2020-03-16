@@ -1,15 +1,15 @@
-package networkfetcher
+package capture
 
 import "net"
 
-type CaptureConf struct {
+type Conf struct {
 	DeviceName  string
 	ListenAddrs []net.Addr
 	ConnAddrs   []net.Addr
 }
 
-type CaptureStatusSetMsg struct {
+type StatusSetMsg struct {
 	CaptureIds []string
-	NewStatus  CaptureStatus
+	NewStatus  Status
 	SetAll     bool
 }
