@@ -20,7 +20,7 @@ func init() {
 	// 日志消息输出可以是任意的io.writer类型
 	log.SetOutput(os.Stdout)
 	// 设置日志级别为warn以上
-	log.SetLevel(log.TraceLevel)
+	log.SetLevel(log.DebugLevel)
 }
 
 func main() {

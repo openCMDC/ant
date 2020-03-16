@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 //copied from tcpreader.ReaderStream
@@ -72,7 +73,7 @@ func (m *ConcurrentReader) concurrentRead(p []byte, callerId string) (n int, err
 		m.readIndices[callerId] += c
 		return c, nil
 	}
-	c, err := m.doRead(p)
+	c, err := m.doRead(p, callerId)
 	if err != nil {
 		if c > 0 {
 			m.cache = append(m.cache, p[0:c]...)
@@ -97,30 +98,36 @@ func (m *ConcurrentReader) singleRead(p []byte, callerId string) (n int, err err
 	} else {
 		// cache is useless
 		m.cache = make([]byte, 0)
-		n, err = m.doRead(p)
+		n, err = m.doRead(p, callerId)
 	}
 	return
 }
 
-func (m *ConcurrentReader) doRead(p []byte) (n int, err error) {
+func (m *ConcurrentReader) doRead(p []byte, callerId string) (n int, err error) {
 	if m.lastWrapper == nil {
-		return m.readNewWrapper(p)
+		return m.readNewWrapper(p, callerId)
 	}
 	w := m.lastWrapper
 	if w.left <= 0 {
-		return m.readNewWrapper(p)
+		return m.readNewWrapper(p, callerId)
 	}
 	copied := copy(p, w.slice[len(w.slice)-w.left:])
 	w.left -= copied
 	return copied, nil
 }
 
-func (m *ConcurrentReader) readNewWrapper(p []byte) (n int, err error) {
+func (m *ConcurrentReader) readNewWrapper(p []byte, callerId string) (n int, err error) {
 	var w *wrapper
 	select {
 	case w = <-m.wrapperChan:
 	case _ = <-m.notifyChan:
-		return 0, ReadBlockNotified
+		if !m.checkReadPermissionStrictly(callerId) {
+			return 0, ReadBlockNotified
+		}
+	}
+	if w == nil {
+		// if notified bug this callerId has permit to read, try read again
+		w = <-m.wrapperChan
 	}
 
 	if w == nil {
@@ -156,6 +163,23 @@ func (m *ConcurrentReader) SetOwner(callerId string) {
 	m.interruptReading()
 }
 
+func (m *ConcurrentReader) SetOwnerWithoutInterrupt(callerId string) {
+	if !m.allowConcurrentRead() {
+		// meas this method has been called, should't be called again
+		log.WithFields(map[string]interface{}{
+			"newId":     callerId,
+			"existedId": m.ownerId,
+		}).Error("SetOwner should not be called muti times")
+		return
+	}
+	m.statusMutex.Lock()
+	defer m.statusMutex.Unlock()
+	//atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&m.ownerId)), &goroutingId)
+	m.ownerId = callerId
+	//forbiden concurrent reader
+	m.forbiddenConcurrentRead()
+}
+
 func (m *ConcurrentReader) checkReadPermission(callerId string) bool {
 	m.statusMutex.Lock()
 	defer m.statusMutex.Unlock()
@@ -171,8 +195,24 @@ func (m *ConcurrentReader) checkReadPermission(callerId string) bool {
 	return false
 }
 
+func (m *ConcurrentReader) checkReadPermissionStrictly(callerId string) bool {
+	m.statusMutex.Lock()
+	defer m.statusMutex.Unlock()
+	//ownerId is set, only caller with the same callerId has permission to read
+	if m.ownerId == callerId {
+		return true
+	}
+	return false
+}
+
 func (m *ConcurrentReader) interruptReading() {
 	m.notifyChan <- struct{}{}
+	defer func() {
+		time.Sleep(100 * time.Millisecond)
+		if len(m.notifyChan) == 1 {
+			<-m.notifyChan
+		}
+	}()
 }
 
 //seek start index to index,
@@ -243,7 +283,7 @@ func NewConcurrentReader(reader *StreamReader) *ConcurrentReader {
 	r.reader = reader
 	r.readerBroadcast = make(chan struct{})
 	r.wrapperChan = make(chan *wrapper, 2048)
-	r.notifyChan = make(chan struct{})
+	r.notifyChan = make(chan struct{}, 1)
 	r.cache = make([]byte, 0, 1024)
 	r.readIndices = make(map[string]int, 8)
 	r.status = 0x0000

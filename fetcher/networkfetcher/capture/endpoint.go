@@ -160,7 +160,7 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 	d := decoder2.GetDecoder(name)
 	if d != nil {
 		log.WithFields(log.Fields{"decoder": d.Name(), "serverAddr": conn.GetServerAddr().String()}).Debug("find default decoder")
-		queue := make(chan *core.Row, 10)
+		queue := make(chan *core.Row)
 		go func() {
 			conn.C2SStream().SetOwner(name)
 			conn.S2CStream().SetOwner(name)
@@ -179,7 +179,7 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 		decoder := de
 		go func() {
 			name := decoder.Name()
-			log.WithField("decoder", decoder.Name()).Trace("try to parse tcp connection")
+			log.WithField("decoder", decoder.Name()).Debug("try to parse tcp connection")
 			queue := make(chan *core.Row, 10)
 			decodeGoroutingId := base2.GoID()
 			chanMap.Store(name, queue)

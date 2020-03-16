@@ -4,6 +4,7 @@ import (
 	"ant/core"
 	"ant/fetcher/networkfetcher/base"
 	"bufio"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
@@ -116,6 +117,7 @@ func (h *httpDecoder) Parse(conn *base.TCPConn, sendBackChan chan<- *core.Row) {
 		if err != nil {
 			//log.WithFields(log.Fields{"errMsg": err.Error(), "clientAddr": conn.GetClientAddr().String()}).Warn("parse http request err")
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				fmt.Println("eof")
 				return
 			}
 			continue
@@ -130,6 +132,7 @@ func (h *httpDecoder) Parse(conn *base.TCPConn, sendBackChan chan<- *core.Row) {
 		if err != nil {
 			//log.WithFields(log.Fields{"errMsg": err.Error(), "clientAddr": conn.GetClientAddr().String(),}).Warn("parse http response err")
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				fmt.Println("eof")
 				return
 			}
 			continue
