@@ -7,7 +7,7 @@ type namedReader struct {
 	reader *base.ConcurrentReader
 }
 
-func newNamedReader(name string, reader *base.ConcurrentReader) *namedReader {
+func NewNamedReader(name string, reader *base.ConcurrentReader) *namedReader {
 	return &namedReader{
 		name:   name,
 		reader: reader,

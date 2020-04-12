@@ -46,16 +46,29 @@ func (conn *TCPConn) SetC2SStream(stream *StreamReader) {
 	}
 	conn.client2ServerStream.reader = stream
 	conn.client2ServerStream.SetReaderReady()
+}
 
+func (conn *TCPConn) IsConnIncomplete() bool {
+	return conn.server2ClientStream.reader == nil || conn.client2ServerStream.reader == nil
+}
+
+func (conn *TCPConn) HasClosedStream() bool {
+	return (conn.server2ClientStream.reader != nil && conn.server2ClientStream.reader.closed) ||
+		(conn.client2ServerStream.reader != nil && conn.client2ServerStream.reader.closed)
+}
+
+func (conn *TCPConn) CheckBothStreamClosed() bool {
+	return conn.server2ClientStream.reader != nil && conn.server2ClientStream.reader.closed &&
+		conn.client2ServerStream.reader != nil && conn.client2ServerStream.reader.closed
 }
 
 func (conn *TCPConn) SetS2CStream(stream *StreamReader) {
 	if conn.server2ClientStream.reader != nil {
 		log.Warn("replace server to clietn stream which already existed is not allowed")
-		return
 	}
 	conn.server2ClientStream.reader = stream
 	conn.server2ClientStream.SetReaderReady()
+	return
 }
 
 func NewTCPConn(clientAddr, serverAddr *net.TCPAddr, c2sStream, s2cStream *StreamReader) *TCPConn {

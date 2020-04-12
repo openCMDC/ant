@@ -1,8 +1,9 @@
-package decoder
+package http
 
 import (
 	"ant/core"
 	"ant/fetcher/networkfetcher/base"
+	"ant/fetcher/networkfetcher/decoder"
 	"bufio"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -22,7 +23,7 @@ var httpTable core.Table
 func init() {
 	httpRequestFirstLineReg, _ = regexp.Compile(`((GET)|(HEAD)|(POST)|(PUT)|(DELETE)|(PATCH))\s.*\sHTTP\/\d\.\d`)
 	httpResponseFirstLineReg, _ = regexp.Compile(`HTTP\/\d\.\d\s(\d{0,3})\s\w+`)
-	RegisterDecoder("http", NewHttpDecoder)
+	decoder.RegisterDecoder("http", NewHttpDecoder)
 	fs := make([]*core.Field, 0)
 	fs = append(fs, &core.Field{Name: "domain", DataType: core.String})
 	fs = append(fs, &core.Field{Name: "version", DataType: core.Number})
@@ -109,16 +110,19 @@ func (h *httpDecoder) Parse(conn *base.TCPConn, sendBackChan chan<- *core.Row) {
 	//}
 	//log.Info("success locate start in c2s Stream")
 
-	r5 := bufio.NewReader(newNamedReader("http", conn.C2SStream()))
-	r6 := bufio.NewReader(newNamedReader("http", conn.S2CStream()))
+	//time.Sleep(time.Hour)
+
+	r5 := bufio.NewReader(decoder.NewNamedReader("http", conn.C2SStream()))
+	r6 := bufio.NewReader(decoder.NewNamedReader("http", conn.S2CStream()))
 	for {
 		//log.WithField("clientAddr", conn.GetClientAddr().String()).Info("start parse http request")
 		req, err := http.ReadRequest(r5)
+		reqSendTs := time.Now().UnixNano()
 		if err != nil {
 			//log.WithFields(log.Fields{"errMsg": err.Error(), "clientAddr": conn.GetClientAddr().String()}).Warn("parse http request err")
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				fmt.Println("eof")
-				return
+				break
 			}
 			continue
 		}
@@ -126,14 +130,18 @@ func (h *httpDecoder) Parse(conn *base.TCPConn, sendBackChan chan<- *core.Row) {
 			ioutil.ReadAll(req.Body)
 		}
 		//log.WithField("clientAddr", conn.GetClientAddr().String()).Info("parse http request success and send 2 channel")
-		reqSendTs := time.Now().UnixNano()
+
 		//log.WithField("clientAddr", conn.GetClientAddr().String()).Info("start parse http response")
 		rep, err := http.ReadResponse(r6, req)
 		if err != nil {
 			//log.WithFields(log.Fields{"errMsg": err.Error(), "clientAddr": conn.GetClientAddr().String(),}).Warn("parse http response err")
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				fmt.Println("eof")
-				return
+				break
+			}
+			if _, ok := err.(*base.ReadNotAllowedErr); ok {
+				fmt.Println("http decoder is not proper")
+				break
 			}
 			continue
 		}
@@ -202,6 +210,6 @@ func checkIsHttpRequestStart(line string) bool {
 func checkIsHttpResponceStart(line string) bool {
 	return httpResponseFirstLineReg.MatchString(line)
 }
-func NewHttpDecoder() Interface {
+func NewHttpDecoder() decoder.Interface {
 	return new(httpDecoder)
 }

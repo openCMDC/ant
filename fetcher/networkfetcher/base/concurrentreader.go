@@ -60,10 +60,25 @@ func (m *ConcurrentReader) Read(p []byte, callerId string) (n int, err error) {
 	m.cacheMutex.Lock()
 	defer m.cacheMutex.Unlock()
 	if m.allowConcurrentRead() {
-		return m.concurrentRead(p, callerId)
+		n, err := m.concurrentRead(p, callerId)
+		return n, err
 	} else {
-		return m.singleRead(p, callerId)
+		n, err := m.singleRead(p, callerId)
+		return n, err
 	}
+}
+
+func (m *ConcurrentReader) Close() {
+	if m.reader == nil {
+		log.Warn("why close a nil reader")
+		return
+	}
+	if m.reader.closed {
+		return
+	}
+	log.WithFields(log.Fields{"netlayer": m.reader.netLayer, "transportlayer": m.reader.transLayer}).
+		Warn("why active close a reader")
+	m.reader.Close()
 }
 
 func (m *ConcurrentReader) concurrentRead(p []byte, callerId string) (n int, err error) {
@@ -88,7 +103,7 @@ func (m *ConcurrentReader) concurrentRead(p []byte, callerId string) (n int, err
 func (m *ConcurrentReader) singleRead(p []byte, callerId string) (n int, err error) {
 	checkSuccess := m.checkReadPermission(callerId)
 	if checkSuccess == false {
-		return 0, newReadBlockNotified(callerId, m.ownerId)
+		return 0, io.EOF
 	}
 
 	i := m.readIndices[callerId]
@@ -122,11 +137,11 @@ func (m *ConcurrentReader) readNewWrapper(p []byte, callerId string) (n int, err
 	case w = <-m.wrapperChan:
 	case _ = <-m.notifyChan:
 		if !m.checkReadPermissionStrictly(callerId) {
-			return 0, ReadBlockNotified
+			return 0, io.EOF
 		}
 	}
 	if w == nil {
-		// if notified bug this callerId has permit to read, try read again
+		// if notified but this callerId has permit to read, try read again
 		w = <-m.wrapperChan
 	}
 
@@ -259,8 +274,8 @@ func (m *ConcurrentReader) SetReaderReady() {
 func (m *ConcurrentReader) startRead() {
 	go func() {
 		container := make([]byte, 1024)
+		m.waitReaderReady()
 		for {
-			m.waitReaderReady()
 			count, err := m.reader.Read(container)
 			if err != nil {
 				m.wrapperChan <- &wrapper{nil, 0, err}

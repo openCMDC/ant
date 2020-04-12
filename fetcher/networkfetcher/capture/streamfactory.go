@@ -8,28 +8,31 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net"
 	"strings"
+	"sync"
 )
 
 type DefaultStreamFactory struct {
 	capture         *Capture
-	serverEndpoints map[string]*ServerEndPoint
+	serverEndpoints sync.Map
 }
 
 func (sf *DefaultStreamFactory) New(netLayer, transLayer gopacket.Flow) tcpassembly.Stream {
 	reader := base.NewReaderStream(netLayer, transLayer)
-	log.Debug("# Start new stream:", netLayer, transLayer)
+	//log.Debug("# Start new stream:", netLayer, transLayer)
+	log.Debug("# Start new stream  ", transLayer)
 	ca, sa, st, err := sf.GetInfo(netLayer, transLayer)
 	if err != nil {
 		log.WithField("errMsg", err.Error()).Warn("stream factory produce a invalid reader")
 		return &reader
 	}
-	endPoint, ok := sf.serverEndpoints[sa.String()]
+	endPoint, ok := sf.serverEndpoints.Load(sa.String())
 	if !ok {
 		conn := base.NewTCPConn(ca, sa, nil, nil)
 		endPoint = NewServerEndpoint(conn, sf.capture.FetcherCtx)
-		sf.serverEndpoints[sa.String()] = endPoint
+		sf.serverEndpoints.Store(sa.String(), endPoint)
 	}
-	endPoint.AddStream(ca, sa, &reader, st)
+	ep := endPoint.(*ServerEndPoint)
+	ep.AddStream(ca, sa, &reader, st)
 	return &reader
 }
 
@@ -73,8 +76,7 @@ func distinguishStreamDrc(src, dst *net.TCPAddr, addrs []net.Addr) (clientAddr, 
 
 func newDSF(c *Capture) *DefaultStreamFactory {
 	f := &DefaultStreamFactory{
-		capture:         c,
-		serverEndpoints: make(map[string]*ServerEndPoint, 100),
+		capture: c,
 	}
 	return f
 }

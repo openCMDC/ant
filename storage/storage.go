@@ -2,6 +2,7 @@ package storage
 
 import (
 	"ant/core"
+	"fmt"
 )
 
 type Interface interface {
@@ -16,9 +17,11 @@ type TestStorage struct {
 
 func (t *TestStorage) StartConsume() error {
 	go func() {
+		count := 0
 		for r := range t.cache {
-			//fmt.Println(r.String())
-			r.String()
+			fmt.Println(r.String())
+			count++
+			fmt.Println(count)
 		}
 	}()
 	return nil

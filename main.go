@@ -3,11 +3,14 @@ package main
 import (
 	"ant/core"
 	"ant/fetcher"
+	_ "ant/fetcher/networkfetcher/decoder/http"
+	_ "ant/fetcher/networkfetcher/decoder/mysql"
+	_ "ant/fetcher/networkfetcher/decoder/redis"
 	"ant/storage"
-	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
-	"os/signal"
 )
 
 func init() {
@@ -20,7 +23,7 @@ func init() {
 	// 日志消息输出可以是任意的io.writer类型
 	log.SetOutput(os.Stdout)
 	// 设置日志级别为warn以上
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.ErrorLevel)
 }
 
 func main() {
@@ -40,9 +43,10 @@ func main() {
 		log.WithError(err).Errorf("start network fetcher manager failed")
 		return
 	}
+	http.ListenAndServe("localhost:6060", nil)
 
-	terminalChan := make(chan os.Signal)
-	signal.Notify(terminalChan, os.Interrupt, os.Kill)
-	s := <-terminalChan
-	fmt.Printf("terminate process, Got signal: %s \n", s)
+	//terminalChan := make(chan os.Signal)
+	//signal.Notify(terminalChan, os.Interrupt, os.Kill)
+	//s := <-terminalChan
+	//fmt.Printf("terminate process, Got signal: %s \n", s)
 }

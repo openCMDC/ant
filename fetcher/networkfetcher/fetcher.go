@@ -144,7 +144,7 @@ func NewInstance(ctx *base.FetcherCtx) *NetworkDataFetcher {
 	fetcher.fetcherCtx = ctx
 	fetcher.captures = make(map[string][2]*capture.Capture)
 	//fetcher.updateConfPeriodically()
-	tcp, _ := net.ResolveTCPAddr("tcp", "120.92.182.58:80")
+	tcp, _ := net.ResolveTCPAddr("tcp", "39.103.21.100:6379")
 	conf := &capture.Conf{
 		DeviceName:  `\Device\NPF_{7D0089A9-CD14-4C31-926D-B5D61B002A60}`,
 		ListenAddrs: nil,

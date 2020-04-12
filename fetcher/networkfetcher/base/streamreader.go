@@ -105,7 +105,8 @@ func (r *StreamReader) Read(p []byte) (int, error) {
 // io.ReadCloser.  It discards all remaining bytes in the reassembly in a
 // manner that's safe for the assembler (IE: it doesn't block).
 func (r *StreamReader) Close() error {
-	log.WithFields(log.Fields{"netLayer": r.netLayer, "transportLayer": r.transLayer}).Trace("Close streamreader")
+	//log.WithFields(log.Fields{"netLayer": r.netLayer, "transportLayer": r.transLayer}).Debug("Close streamreader")
+	log.WithFields(log.Fields{"transportLayer": r.transLayer}).Debug("Close streamreader")
 	r.current = nil
 	r.closed = true
 	for {
