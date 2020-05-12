@@ -2,7 +2,7 @@ package base
 
 import (
 	"ant/core"
-	"ant/storage"
+	"ant/db"
 )
 
 type DataFetcher interface {
@@ -13,6 +13,6 @@ type DataFetcher interface {
 }
 
 type FetcherCtx struct {
-	Storage storage.Interface
+	Storage db.Interface
 	AntCtx  core.AntContext
 }

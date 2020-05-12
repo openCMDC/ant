@@ -119,7 +119,7 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 		}()
 		go func() {
 			for r := range queue {
-				storage.StoreRow(r)
+				storage.InsertRow(r)
 			}
 		}()
 		return
@@ -143,7 +143,7 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 					fst = false
 				}
 
-				storage.StoreRow(r)
+				storage.InsertRow(r)
 			}
 			//log.WithField("decoder", decoder).Debug("parse end")
 		}()

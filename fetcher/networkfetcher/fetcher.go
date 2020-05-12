@@ -1,10 +1,10 @@
 package networkfetcher
 
 import (
+	"ant/db"
 	"ant/fetcher/base"
 	base2 "ant/fetcher/networkfetcher/base"
 	"ant/fetcher/networkfetcher/capture"
-	"ant/storage"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
@@ -13,7 +13,7 @@ import (
 type NetworkDataFetcher struct {
 	captures   map[string][2]*capture.Capture
 	fetcherCtx *base.FetcherCtx
-	storage    storage.Interface
+	storage    db.Interface
 }
 
 func (*NetworkDataFetcher) Name() string {

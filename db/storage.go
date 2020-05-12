@@ -1,4 +1,4 @@
-package storage
+package db
 
 import (
 	"ant/core"
@@ -7,15 +7,18 @@ import (
 
 type Interface interface {
 	StartConsume() error
-	StoreRow(row *core.Row)
+	InsertRow(row *core.Row)
 }
 
-type TestStorage struct {
+type DefaultDB struct {
 	antCtx core.AntContext
 	cache  chan *core.Row
+	map[string]
 }
 
-func (t *TestStorage) StartConsume() error {
+type RowNode
+
+func (t *DefaultDB) StartConsume() error {
 	go func() {
 		count := 0
 		for r := range t.cache {
@@ -27,12 +30,12 @@ func (t *TestStorage) StartConsume() error {
 	return nil
 }
 
-func (t TestStorage) StoreRow(row *core.Row) {
+func (t DefaultDB) InsertRow(row *core.Row) {
 	t.cache <- row
 }
 
 func NewTestStorage(ctx core.AntContext) Interface {
-	return &TestStorage{
+	return &DefaultDB{
 		antCtx: ctx,
 		cache:  make(chan *core.Row, 4096),
 	}

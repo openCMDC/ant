@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -18,6 +19,7 @@ type Table struct {
 }
 type Field struct {
 	Name     string
+	Alias    string
 	DataType FieldType
 }
 
@@ -25,6 +27,46 @@ type Field struct {
 type Row struct {
 	Meta    *Table
 	Content []interface{}
+}
+
+type GroupByedRows struct {
+	GroupKVs map[string]interface{}
+	GroupByK []string
+	GroupByV []interface{}
+	rows     []*Row
+}
+
+func NewGroupByedRows() *GroupByedRows {
+	return &GroupByedRows{
+		GroupKVs: make(map[string]interface{}),
+		rows:     make([]*Row, 0),
+	}
+}
+
+func (g *GroupByedRows) ParseKV2String() string {
+	var buffer bytes.Buffer
+	for _, k := range g.GroupByK {
+		buffer.WriteString(fmt.Sprintf("%s->%s", k, g.GroupKVs[k]))
+	}
+	return buffer.String()
+}
+
+func (g *GroupByedRows) AddKV(k string, v interface{}) {
+	g.GroupKVs[k] = v
+	g.GroupByK = append(g.GroupByK, k)
+	g.GroupByV = append(g.GroupByV, v)
+}
+
+func (g *GroupByedRows) AddRows(r *Row) {
+	g.rows = append(g.rows, r)
+}
+
+func (g *GroupByedRows) GetGroupByKeys() []string {
+	return g.GroupByK
+}
+
+func (g *GroupByedRows) GetGroupByValues() []interface{} {
+	return g.GroupByV
 }
 
 func (r *Row) String() string {

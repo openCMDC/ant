@@ -2,9 +2,9 @@ package fetcher
 
 import (
 	"ant/core"
+	"ant/db"
 	"ant/fetcher/base"
 	"ant/fetcher/networkfetcher"
-	"ant/storage"
 )
 
 type Manager struct {
@@ -17,7 +17,7 @@ func (f *Manager) Start() error {
 	return nil
 }
 
-func NewFetcherManager(ctx core.AntContext, storage storage.Interface) *Manager {
+func NewFetcherManager(ctx core.AntContext, storage db.Interface) *Manager {
 	fetcherCtx := new(base.FetcherCtx)
 	fetcherCtx.AntCtx = ctx
 	fetcherCtx.Storage = storage

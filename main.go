@@ -2,11 +2,11 @@ package main
 
 import (
 	"ant/core"
+	"ant/db"
 	"ant/fetcher"
 	_ "ant/fetcher/networkfetcher/decoder/http"
 	_ "ant/fetcher/networkfetcher/decoder/mysql"
 	_ "ant/fetcher/networkfetcher/decoder/redis"
-	"ant/storage"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
@@ -29,7 +29,7 @@ func init() {
 func main() {
 	antCtx := core.NewDefaultAntCtx("12132")
 
-	store := storage.NewTestStorage(antCtx)
+	store := db.NewTestStorage(antCtx)
 	err := store.StartConsume()
 	if err != nil {
 		log.WithError(err).Errorf("start storage failed")
