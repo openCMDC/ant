@@ -97,7 +97,23 @@ func (m *ConcurrentReader) concurrentRead(p []byte, callerId string) (n int, err
 	}
 	m.cache = append(m.cache, p[0:c]...)
 	m.readIndices[callerId] += c
+	m.release()
 	return c, nil
+}
+
+const IntMax = int(^uint(0) >> 1)
+
+func (m *ConcurrentReader) release() {
+	minIndex := IntMax
+	for _, index := range m.readIndices {
+		if index < minIndex {
+			minIndex = index
+		}
+	}
+	for k, index := range m.readIndices {
+		m.readIndices[k] = index - minIndex
+	}
+	m.cache = m.cache[minIndex:]
 }
 
 func (m *ConcurrentReader) singleRead(p []byte, callerId string) (n int, err error) {

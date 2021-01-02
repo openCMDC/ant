@@ -1,7 +1,7 @@
 package execution
 
 import (
-	"../parser"
+	"ant/antlr3/parser"
 	"bytes"
 	"fmt"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
@@ -24,7 +24,7 @@ var StringConstContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error
 		return nil, NewTypeNoMatchedErr("parser.StringConstantContext", t)
 	}
 	content := c.StringLiteral().GetText()
-	return content, nil
+	return content[1 : len(content)-1], nil
 }
 
 var NumberConstantContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error) {
@@ -66,7 +66,7 @@ var ColumnNameContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error)
 			return contents[i], nil
 		}
 	}
-	return nil, fmt.Errorf("can't find proper colume %s", cn);
+	return nil, fmt.Errorf("can't find proper colume %s", cn)
 }
 
 var ColumnNameExpressionAtomContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error) {
@@ -146,8 +146,8 @@ var CommonAggregateFuncContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{
 		aggregator = c.GetAggregator().GetText()
 	}
 
-	args := make([]interface{}, 0, len(ctx.Rows.rows))
-	for _, r := range ctx.Rows.rows {
+	args := make([]interface{}, 0, len(ctx.Rows.Rows))
+	for _, r := range ctx.Rows.Rows {
 		nctx := &SqlCtx{0, r, nil}
 		res, err := ExecFuncByType(nctx, argExpr)
 		if err != nil {
@@ -164,7 +164,7 @@ var CountFunc1ContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error)
 	if !e {
 		return nil, NewTypeNoMatchedErr("parser.AggregateFunctionCallContext", t)
 	}
-	return len(ctx.Rows.rows), nil
+	return len(ctx.Rows.Rows), nil
 }
 
 var CountFunc2ContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error) {
@@ -175,11 +175,11 @@ var CountFunc2ContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error)
 	aggregator := c.GetAggregator().GetText()
 	if strings.EqualFold(aggregator, "ALL") {
 		//todo 这里需要确定一下count(column1, column2)表达的语义是什么
-		return len(ctx.Rows.rows), nil
+		return len(ctx.Rows.Rows), nil
 	}
 	functionArgs := c.FunctionArgs().(*parser.FunctionArgsContext)
 	temp := make(map[string]bool)
-	for _, r := range ctx.Rows.rows {
+	for _, r := range ctx.Rows.Rows {
 		nctx := &SqlCtx{0, r, nil}
 		var buffer bytes.Buffer
 		for _, arg := range functionArgs.AllExpression() {
@@ -342,7 +342,7 @@ func sumFunc(args []interface{}, aggregator string) interface{} {
 
 func init() {
 	RegisterParseFunc("ConstantExpressionAtomContext", ConstantExpressionAtomContextFunc)
-	RegisterParseFunc("StringConstContext", StringConstContextFunc)
+	RegisterParseFunc("StringConstantContext", StringConstContextFunc)
 	RegisterParseFunc("NumberConstantContext", NumberConstantContextFunc)
 	RegisterParseFunc("BoolConstantContext", BoolConstantContextFunc)
 	RegisterParseFunc("ColumnNameContext", ColumnNameContextFunc)

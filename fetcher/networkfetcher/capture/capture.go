@@ -62,42 +62,39 @@ func (c Type) String() string {
 }
 
 type Capture struct {
-	Name          string
 	DeviceName    string
-	FetcherCtx    *base.FetcherCtx
+	LocalAddr     []pcap.InterfaceAddress
+	Bpf           string
+	FetcherCtx    *base.FetcherBackend
 	streamFactory base2.StreamFactory
-	captureType   Type
-	addr          []net.Addr
-	bpfStr        string
+	ListeningAddr []net.Addr
 	status        Status
 	interStatus   captureInternalStatus
 	oldStatus     Status
 	handle        *pcap.Handle
 }
 
-func (c *Capture) SetAddrs(addrs []net.Addr) {
+func (c *Capture) UpdateConf(conf *Conf) {
 	//todo 根据是否变化来设置状态
 	// 如果正在运行中，改变bpf的值
 	if c.handle == nil {
 		return
 	}
-	c.addr = addrs
-	c.addr = addrs
-	newBpf := base2.GenerateBPFStr(addrs, c.captureType == ListenStreamCapture)
+	//c.Conf = conf
 	//todo to be verified later
-	c.handle.SetBPFFilter(newBpf)
+	err := c.handle.SetBPFFilter(conf.BpfStr)
+	if err != nil {
+		log.Warn("update capture conf failed", err)
+	}
 }
 
-func (c *Capture) ensureRunning() error {
-	if len(c.bpfStr) == 0 {
-		return nil
-	}
+func (c *Capture) Start() error {
 	if c.handle == nil {
 		handle, err := pcap.OpenLive(c.DeviceName, 65535, false, pcap.BlockForever)
 		if err != nil {
 			return err
 		}
-		err = handle.SetBPFFilter(c.bpfStr)
+		err = handle.SetBPFFilter(c.Bpf)
 		if err != nil {
 			return err
 		}
@@ -150,64 +147,39 @@ func (c *Capture) ensureRunning() error {
 	return nil
 }
 
-func (c *Capture) ensureStopped() {
+func (c *Capture) Stop() {
+	//todo
+}
+
+func (c *Capture) Pause() {
 	//todo
 }
 
 func (c *Capture) SetStatus(status Status) error {
 	if status == Running {
-		return c.ensureRunning()
+		return c.Start()
 	}
 	//todo 其他状态设置
 	return nil
 }
 
-func (c *Capture) updateCaptureStatus(msg *StatusSetMsg) {
-	c.oldStatus, c.status = c.status, msg.NewStatus
-	switch c.status {
-	//case common.NewCreated:
-	//	//why? do nothing
-	//case common.Ready:
-	//	//why? do nothing
-	//case common.Staring:
-	//	//why? do nothing
-	case Running:
-		//
-		err := c.ensureRunning()
-		if err != nil {
-			log.WithField("errMsg", err.Error()).Warn("start capture failed")
-		}
-	//case common.Stoping:
-	//	//why? do nothing
-	case Stoppted:
-		c.ensureStopped()
-	default:
-		log.WithField("status", c.status.String()).Warn("unSupported status set action")
-	}
-}
-
-func NewCapture(name, deviceName string, addr []net.Addr, captureType Type, ctx *base.FetcherCtx) *Capture {
-	//todo
-	isListen := true
-	if captureType == ConnectStreamCapture {
-		isListen = false
-	}
+func NewCapture(ctx *base.FetcherBackend, deviceName, bpf string, localAddr []pcap.InterfaceAddress) *Capture {
+	la, _ := base2.FetchAppNetworkInfo("")
 	c := &Capture{
-		Name:        name,
-		DeviceName:  deviceName,
-		FetcherCtx:  ctx,
-		addr:        addr,
-		captureType: captureType,
-		bpfStr:      base2.GenerateBPFStr(addr, isListen),
-		status:      NewCreated,
-		oldStatus:   0,
-		interStatus: Ready,
+		FetcherCtx:    ctx,
+		DeviceName:    deviceName,
+		Bpf:           bpf,
+		LocalAddr:     localAddr,
+		ListeningAddr: la,
+		status:        NewCreated,
+		oldStatus:     0,
+		interStatus:   Ready,
 	}
 	sf := newDSF(c)
 	c.streamFactory = sf
 	return c
 }
 
-func GenerateCaptureName(deviceName string, catogery Type) string {
-	return fmt.Sprintf("{%s}-{%s}", deviceName, catogery.String())
+func GenerateCaptureName(deviceName string) string {
+	return fmt.Sprintf("{%s}", deviceName)
 }

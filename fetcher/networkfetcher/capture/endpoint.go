@@ -49,10 +49,10 @@ type ServerEndPoint struct {
 	conns        map[string]*base2.TCPConn
 	decoderName  string
 	mutex        sync.RWMutex
-	fetcherCtx   *base.FetcherCtx
+	fetcherCtx   *base.FetcherBackend
 }
 
-func NewServerEndpoint(conn *base2.TCPConn, ctx *base.FetcherCtx) *ServerEndPoint {
+func NewServerEndpoint(conn *base2.TCPConn, ctx *base.FetcherBackend) *ServerEndPoint {
 	se := new(ServerEndPoint)
 	se.serverAddr = conn.GetServerAddr()
 	se.decoderReady = make(chan struct{})
@@ -105,7 +105,6 @@ func (s *ServerEndPoint) AddStream(ca *net.TCPAddr, sa *net.TCPAddr, reader *bas
 
 func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 	log.Trace("start parse stream")
-	storage := s.fetcherCtx.Storage
 	name := GetDefaultDecoder(conn.GetServerAddr().String())
 	d := decoder2.GetDecoder(name)
 	if d != nil {
@@ -119,12 +118,14 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 		}()
 		go func() {
 			for r := range queue {
-				storage.InsertRow(r)
+				s.fetcherCtx.ConsumeRows(r)
 			}
 		}()
 		return
 	}
 	decoders := decoder2.GetDecoders()
+	//todo 这里要不要加个超时机制，如果同时满足超时一定时间并且流过的流量也足够多两个条件，但是仍然
+	// 没有decoder解析成功，就认为这个流无法被解析。设置默认decoder或者设置bpf。
 	for _, de := range decoders {
 		decoder := de
 		queue := make(chan *core.Row, 10)
@@ -142,8 +143,7 @@ func (s *ServerEndPoint) startParseTcpConn(conn *base2.TCPConn) {
 					conn.S2CStream().SetOwner(decoder.Name())
 					fst = false
 				}
-
-				storage.InsertRow(r)
+				s.fetcherCtx.ConsumeRows(r)
 			}
 			//log.WithField("decoder", decoder).Debug("parse end")
 		}()

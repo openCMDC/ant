@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 )
-import "../parser"
+import "ant/antlr3/parser"
 
 var InPredicateContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error) {
 	c, e := t.(*parser.InPredicateContext)
@@ -69,13 +69,14 @@ var BinaryComparasionPredicateContextFunc = func(ctx *SqlCtx, t antlr.Tree) (int
 	if !e {
 		return nil, NewTypeNoMatchedErr("parser.BinaryComparasionPredicateContext", t)
 	}
-	lf, err := ExecFuncByTypeAndParseRes2Float(ctx, c.GetLeft())
+	//todo
+	lf, err := ExecFuncByTypeAndParseRes2String(ctx, c.GetLeft())
 	if err != nil {
 		return nil, NewAntlrErr(fmt.Sprintf("resolve left expression {%s} in BinaryComparasionPredicate failed of {%s}",
 			c.GetLeft().GetText(), err.Error()))
 	}
 
-	rf, err := ExecFuncByTypeAndParseRes2Float(ctx, c.GetRight())
+	rf, err := ExecFuncByTypeAndParseRes2String(ctx, c.GetRight())
 	if err != nil {
 		return nil, NewAntlrErr(fmt.Sprintf("resolve right expression {%s} in BinaryComparasionPredicate failed of %s",
 			c.GetRight().GetText(), err.Error()))

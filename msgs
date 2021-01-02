@@ -1,0 +1,1 @@
+/topic/v1/msg/task#{"meta":{},"payload":{"id":"1","name":"test","table":"http","sqlStr":"SELECT COUNT(*) FROM http WHERE path='/query' GROUP BY 1","interval":15, "status":"running"}}

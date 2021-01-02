@@ -1,19 +1,10 @@
 package core
 
-type AntContext interface {
-	TargetProcessID() string
+type AntContext struct {
+	TargetProcessID string
 }
 
-type DefaultCtx struct {
-	targetId string
-}
-
-func (d DefaultCtx) TargetProcessID() string {
-	return d.targetId
-}
-
-func NewDefaultAntCtx(pid string) AntContext {
-	ctx := new(DefaultCtx)
-	ctx.targetId = pid
+func NewDefaultAntCtx() *AntContext {
+	ctx := new(AntContext)
 	return ctx
 }

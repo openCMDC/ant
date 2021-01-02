@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
 )
-import "../parser"
+import "ant/antlr3/parser"
 
 var PredicateExpressionContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{}, error) {
 	c, e := t.(*parser.PredicateExpressionContext)
@@ -39,7 +39,6 @@ var LogicalExpressionContextFunc = func(ctx *SqlCtx, t antlr.Tree) (interface{},
 	}
 	return res, nil
 }
-
 
 func init() {
 	RegisterParseFunc("PredicateExpressionContext", PredicateExpressionContextFunc)

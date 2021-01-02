@@ -12,7 +12,7 @@ type TCPConn struct {
 	client2ServerStream *ConcurrentReader
 	server2ClientStream *ConcurrentReader
 	started             bool
-	ctx                 *base.FetcherCtx
+	ctx                 *base.FetcherBackend
 }
 
 func (conn *TCPConn) GetClientAddr() *net.TCPAddr {

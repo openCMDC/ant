@@ -186,7 +186,7 @@ func fetchInfo4Windows(pid string) ([]net.Addr, []net.Addr) {
 		if len(fields) != 5 {
 			continue
 		}
-		if fields[4] != pid {
+		if pid != "" && fields[4] != pid {
 			continue
 		}
 		if fields[3] == "LISTENING" {

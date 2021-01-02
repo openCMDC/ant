@@ -1,7 +1,9 @@
 package execution
 
+import "ant/core"
+
 type SqlCtx struct {
-	Status    byte
-	Row   	  *Row
-	Rows	  *GroupByedRows
+	Status byte
+	Row    *core.Row
+	Rows   *core.GroupByedRows
 }

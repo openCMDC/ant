@@ -1,0 +1,17 @@
+每一个Mqtt Conn应该对应一个唯一的标识
+这个标识对于ant来说是ant的uid
+对于queen来说是queen的uid
+与这个uid相关联的有一组label
+这个label可以用于决定命令或者数据的指定对象
+
+维护uid和label的关联关系在哪儿做呢？
+
+
+
+细化一下topic的设计逻辑
+现有的逻辑参考topics中的内容
+
+考虑的点：
+（1）当一个topic表达的是对资源的一种增删改查的时候，这种topic的前缀是/topic/v1/data是否合适，是否应该改成/topic/v1/resource/
+（2）结合目前的情况，是否需要server端有一个标准的MqttServer的实现？比如针对retain这种特性，对于短线重连后的ant，就可以比较天然的获取一些初始化信息，比如当前最新的任务配置等等
+（3）/topic/v1/command 这个topic是否需要

@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"fmt"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"strings"
 )
 
@@ -23,7 +24,7 @@ type Field struct {
 	DataType FieldType
 }
 
-//len(Meta.fields) must equals len(Content)
+//len(ResourceMeta.fields) must equals len(Content)
 type Row struct {
 	Meta    *Table
 	Content []interface{}
@@ -33,13 +34,13 @@ type GroupByedRows struct {
 	GroupKVs map[string]interface{}
 	GroupByK []string
 	GroupByV []interface{}
-	rows     []*Row
+	Rows     []*Row
 }
 
 func NewGroupByedRows() *GroupByedRows {
 	return &GroupByedRows{
 		GroupKVs: make(map[string]interface{}),
-		rows:     make([]*Row, 0),
+		Rows:     make([]*Row, 0),
 	}
 }
 
@@ -58,7 +59,7 @@ func (g *GroupByedRows) AddKV(k string, v interface{}) {
 }
 
 func (g *GroupByedRows) AddRows(r *Row) {
-	g.rows = append(g.rows, r)
+	g.Rows = append(g.Rows, r)
 }
 
 func (g *GroupByedRows) GetGroupByKeys() []string {
@@ -93,4 +94,9 @@ func parseToShortStr(src interface{}) string {
 		return str
 	}
 	return str[0:20]
+}
+
+type MqttMsg struct {
+	Topic string
+	mqtt.MessageHandler
 }

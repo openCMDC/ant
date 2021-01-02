@@ -1,37 +1,44 @@
 package networkfetcher
 
 import (
-	"ant/db"
+	"ant/core/err"
+	"ant/core/types"
+	"ant/core/v1/resource"
 	"ant/fetcher/base"
 	base2 "ant/fetcher/networkfetcher/base"
 	"ant/fetcher/networkfetcher/capture"
+	"fmt"
+	"github.com/goinggo/mapstructure"
 	log "github.com/sirupsen/logrus"
-	"net"
 	"time"
 )
 
-type NetworkDataFetcher struct {
-	captures   map[string][2]*capture.Capture
-	fetcherCtx *base.FetcherCtx
-	storage    db.Interface
+type NetworkFetcherRuntime struct {
+	fetcher    types.NetworkFetcher
+	captures   map[string]*capture.Capture
+	fetcherCtx *base.FetcherBackend
+	TotalBytes string
+	ValidBytes string
 }
 
-func (*NetworkDataFetcher) Name() string {
-	return "NetworkDataFetcher"
+func (*NetworkFetcherRuntime) Name() string {
+	return "NetworkFetcherRuntime"
 }
 
-func (fetcher *NetworkDataFetcher) Start() error {
-	fetcher.updateStatus(&capture.StatusSetMsg{
-		CaptureIds: nil,
-		NewStatus:  capture.Running,
-		SetAll:     true,
-	})
+func (fetcher *NetworkFetcherRuntime) Start() error {
+	for _, c := range fetcher.captures {
+		err := c.Start()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (fetcher *NetworkDataFetcher) updateConfPeriodically() {
+func (fetcher *NetworkFetcherRuntime) updateConfPeriodically() {
 	go func() {
-		pid := fetcher.fetcherCtx.AntCtx.TargetProcessID()
+		//todo
+		pid := "123"
 		for {
 			time.Sleep(time.Second * 5)
 			log.WithField("targetPid", pid).Trace("start get new net work conf info")
@@ -44,16 +51,14 @@ func (fetcher *NetworkDataFetcher) updateConfPeriodically() {
 				"lisAddr":  lisAddr,
 				"connAddr": connAddr,
 			}).Debug("success get net work info")
-			dn, err := base2.GetNetDeviceName()
+			dn, _, err := base2.GetNetDeviceName()
 			if err != nil {
 				log.WithError(err).Warn("stop update networkfetcher")
 				continue
 			}
 			log.WithField("deviceName", dn).Debug("success get device name")
 			conf := &capture.Conf{
-				DeviceName:  dn,
-				ListenAddrs: lisAddr,
-				ConnAddrs:   connAddr,
+				DeviceName: dn,
 			}
 			fetcher.UpdateConf(conf)
 			time.Sleep(time.Hour * 5)
@@ -61,95 +66,121 @@ func (fetcher *NetworkDataFetcher) updateConfPeriodically() {
 	}()
 }
 
-func (fetcher *NetworkDataFetcher) Pause() error {
+func (fetcher *NetworkFetcherRuntime) Pause() error {
 	panic("implement me")
 }
 
-func (fetcher *NetworkDataFetcher) Stop() error {
+func (fetcher *NetworkFetcherRuntime) Stop() error {
 	panic("implement me")
 }
 
-func (fetcher *NetworkDataFetcher) UpdateConf(conf *capture.Conf) {
-	log.WithFields(log.Fields{"device name": conf.DeviceName,
-		"listen_ip_and_port":  conf.ListenAddrs,
-		"connect_ip_and_port": conf.ConnAddrs}).Trace("start updateConf")
+func (fetcher *NetworkFetcherRuntime) UpdateConf(conf *capture.Conf) {
+	log.WithFields(log.Fields{"device name": conf.DeviceName, "bpfStr": conf.BpfStr}).
+		Trace("start updateConf")
 	device := conf.DeviceName
+	bpf := conf.DeviceName
 	if len(device) == 0 {
 		log.Warn("empty device name")
 		return
 	}
 	//c.captureConfs[device] = &conf.Conf
 
-	captures, exist := fetcher.captures[device]
+	c, exist := fetcher.captures[device]
 	if exist {
 		log.WithField("deviceName", device).Trace("start update existed capture")
-		listenCapture, connCapture := captures[0], captures[1]
-		if listenCapture == nil || connCapture == nil {
-			log.WithFields(log.Fields{"deviceName": device}).Warn("why?")
-			return
-		}
-		listenCapture.SetAddrs(conf.ListenAddrs)
-		listenCapture.SetAddrs(conf.ConnAddrs)
+		c.UpdateConf(conf)
 		log.WithField("deviceName", device).Trace("update existed capture success")
 		//ctx.Send(listenCapture.Pid, AddrUpdateMsg(conf.ListenAddrs))
 		//ctx.Send(connCapture.Pid, AddrUpdateMsg(conf.ListenAddrs))
 	} else {
 		log.WithField("deviceName", device).Trace("start instantiate capture")
-		lcn := capture.GenerateCaptureName(device, capture.ListenStreamCapture)
-		lc := capture.NewCapture(lcn, device, conf.ListenAddrs, capture.ListenStreamCapture, fetcher.fetcherCtx)
-		ccn := capture.GenerateCaptureName(device, capture.ConnectStreamCapture)
-		cc := capture.NewCapture(ccn, device, conf.ConnAddrs, capture.ConnectStreamCapture, fetcher.fetcherCtx)
-		fetcher.captures[device] = [...]*capture.Capture{lc, cc}
+		c = capture.NewCapture(fetcher.fetcherCtx, device, bpf, nil)
+		fetcher.captures[device] = c
 		log.WithField("deviceName", device).Trace("instantiate capture success")
 	}
 }
 
-func (fetcher *NetworkDataFetcher) updateStatus(msg *capture.StatusSetMsg) {
-	log.WithFields(log.Fields{"setAll": msg.SetAll, "newStatus": msg.NewStatus, "names": msg.CaptureIds}).Trace("start updateStatus")
-	if msg.SetAll {
-		for _, cs := range fetcher.captures {
-			if cs[0] != nil {
-				cs[0].SetStatus(msg.NewStatus)
-			}
-			if cs[1] != nil {
-				cs[1].SetStatus(msg.NewStatus)
-			}
-		}
+func (fetcher *NetworkFetcherRuntime) InitCapture() {
+	fe := fetcher.fetcher
+	log.WithFields(log.Fields{"device name": fe.DeviceName, "bpfStr": fe.BpfFilter}).
+		Trace("start updateConf")
+	device := fe.DeviceName
+	bpf := fe.BpfFilter
+	la := fe.LocalAddr
+	if len(device) == 0 {
+		log.Warn("empty device name")
 		return
 	}
-	ids := msg.CaptureIds
-	for _, id := range ids {
-		a := fetcher.findCaptureByName(id)
-		if a == nil {
-			log.WithField("name", id).Warn("can't find specify capture")
-			continue
-		}
-		a.SetStatus(msg.NewStatus)
+	//c.captureConfs[device] = &conf.Conf
+
+	c, exist := fetcher.captures[device]
+	if exist {
+		log.WithField("deviceName", device).Trace("start update existed capture")
+		//c.UpdateConf(conf)
+		log.WithField("deviceName", device).Trace("update existed capture success")
+		//ctx.Send(listenCapture.Pid, AddrUpdateMsg(conf.ListenAddrs))
+		//ctx.Send(connCapture.Pid, AddrUpdateMsg(conf.ListenAddrs))
+	} else {
+		log.WithField("deviceName", device).Trace("start instantiate capture")
+		c = capture.NewCapture(fetcher.fetcherCtx, device, bpf, la)
+		fetcher.captures[device] = c
+		log.WithField("deviceName", device).Trace("instantiate capture success")
 	}
-}
-func (fetcher *NetworkDataFetcher) findCaptureByName(name string) *capture.Capture {
-	for _, cs := range fetcher.captures {
-		if cs[0].Name == name {
-			return cs[0]
-		}
-		if cs[1].Name == name {
-			return cs[1]
-		}
-	}
-	return nil
 }
 
-func NewInstance(ctx *base.FetcherCtx) *NetworkDataFetcher {
-	fetcher := new(NetworkDataFetcher)
-	fetcher.fetcherCtx = ctx
-	fetcher.captures = make(map[string][2]*capture.Capture)
-	//fetcher.updateConfPeriodically()
-	tcp, _ := net.ResolveTCPAddr("tcp", "39.103.21.100:6379")
-	conf := &capture.Conf{
-		DeviceName:  `\Device\NPF_{7D0089A9-CD14-4C31-926D-B5D61B002A60}`,
-		ListenAddrs: nil,
-		ConnAddrs:   []net.Addr{tcp},
+//deprecated
+func (fetcher *NetworkFetcherRuntime) ConsumeData(resourceName, action string, payload interface{}) {
+	if action == resource.NetworkDataFetcher {
+		nfc := new(types.NetworkFetcher)
+		err := mapstructure.Decode(payload, nfc)
+		if err != nil {
+			log.Warn("decode payload to task failed")
+			return
+		}
+		capConf := &capture.Conf{nfc.DeviceName, nfc.BpfFilter}
+		fetcher.UpdateConf(capConf)
+	} else {
+		log.WithField("action", action).Warn("unsupported action")
 	}
-	fetcher.UpdateConf(conf)
-	return fetcher
+}
+
+func (fetcher *NetworkFetcherRuntime) ConfChange(newConf interface{}) error {
+	if conf, ok := newConf.(*capture.Conf); !ok {
+		return err.NewTypeNotExpectedError(newConf)
+	} else {
+		fetcher.UpdateConf(conf)
+		return nil
+	}
+}
+
+func (fetcher *NetworkFetcherRuntime) StatusChange(newStatus interface{}) error {
+	if status, ok := newStatus.(*types.StatusSetCommand); !ok {
+		return err.NewTypeNotExpectedError(newStatus)
+	} else {
+		if status.Status == types.Running {
+			return fetcher.Start()
+		} else if status.Status == types.Stopped {
+			return fetcher.Stop()
+		} else {
+			return fmt.Errorf("unsppored status %s", status.Status)
+		}
+	}
+}
+
+func NewInstance(ctx *base.FetcherBackend) (*NetworkFetcherRuntime, error) {
+	fetcher := new(NetworkFetcherRuntime)
+	fetcher.fetcherCtx = ctx
+	fetcher.captures = make(map[string]*capture.Capture)
+	dn, addrs, err := base2.GetNetDeviceName()
+	if err != nil {
+		return nil, err
+	}
+	fetcher.fetcher = types.NetworkFetcher{DeviceName: dn, LocalAddr: addrs, BpfFilter: "tcp"}
+	//fetcher.updateConfPeriodically()
+	//tcp, _ := net.ResolveTCPAddr("tcp", "39.103.21.100:6379")
+	//conf := &capture.Conf{
+	//	DeviceName:  `\Device\NPF_{7D0089A9-CD14-4C31-926D-B5D61B002A60}`,
+	//}
+	//fetcher.UpdateConf(conf)
+	return fetcher, nil
 }

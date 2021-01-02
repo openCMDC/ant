@@ -63,23 +63,25 @@ func GoID() uint64 {
 }
 
 var deviceName string
+var addrs []pcap.InterfaceAddress
 var deviceNameMutext sync.Mutex
 
 //get all devices traffic rate and chose the biggest one
 // if there is a agent , this method may return a wrong DeviceName (all traffic will go into a local agent first which use a loop(127.0.0.1) device)
-func GetNetDeviceName() (string, error) {
+func GetNetDeviceName() (string, []pcap.InterfaceAddress, error) {
 	deviceNameMutext.Lock()
 	deviceNameMutext.Unlock()
 	if deviceName != "" {
-		return deviceName, nil
+		return deviceName, addrs, nil
 	}
 	devices, err := pcap.FindAllDevs()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	type result struct {
 		bytes int64
 		name  string
+		addrs []pcap.InterfaceAddress
 	}
 	closeChan := make(chan struct{}, 1)
 	resultChan := make(chan result, len(devices))
@@ -101,15 +103,15 @@ func GetNetDeviceName() (string, error) {
 				case pkg := <-packetSource.Packets():
 					total += int64(len(pkg.Data()))
 				case <-closeChan:
-					resultChan <- result{total, temp.Name}
+					resultChan <- result{total, temp.Name, temp.Addresses}
 					return
 				}
 			}
 		}()
 	}
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 5)
 	close(closeChan)
-	chosen := result{-1, ""}
+	chosen := result{-1, "", nil}
 	for ; counter > 0; counter-- {
 		re := <-resultChan
 		if re.bytes > chosen.bytes {
@@ -119,5 +121,5 @@ func GetNetDeviceName() (string, error) {
 	deviceNameMutext.Lock()
 	deviceName = chosen.name
 	deviceNameMutext.Unlock()
-	return deviceName, nil
+	return chosen.name, chosen.addrs, nil
 }

@@ -35,12 +35,12 @@ func TestNetInterfacesfunc(t *testing.T) {
 }
 
 func TestGetDeviceName(t *testing.T) {
-	deviceName, err := base.GetNetDeviceName()
+	deviceName, addr, err := base.GetNetDeviceName()
 	if err != nil {
 		t.Fail()
 		return
 	}
-	fmt.Println(deviceName)
+	fmt.Println(deviceName, addr)
 }
 
 func TestGetNetInfoOnWindows(t *testing.T) {

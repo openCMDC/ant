@@ -11,12 +11,9 @@ type Interface interface {
 }
 
 type DefaultDB struct {
-	antCtx core.AntContext
+	antCtx *core.AntContext
 	cache  chan *core.Row
-	map[string]
 }
-
-type RowNode
 
 func (t *DefaultDB) StartConsume() error {
 	go func() {
@@ -34,7 +31,7 @@ func (t DefaultDB) InsertRow(row *core.Row) {
 	t.cache <- row
 }
 
-func NewTestStorage(ctx core.AntContext) Interface {
+func NewTestStorage(ctx *core.AntContext) Interface {
 	return &DefaultDB{
 		antCtx: ctx,
 		cache:  make(chan *core.Row, 4096),

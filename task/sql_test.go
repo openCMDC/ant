@@ -2,10 +2,12 @@ package task
 
 import (
 	"ant/core"
+	"ant/core/types"
 	"fmt"
+	"testing"
 )
 
-func main() {
+func TestSql(test *testing.T) {
 	//is := antlr.NewInputStream(`SELECT func1(c1), c2 FROM http WHERE (c2 + 3) / 2`)
 	//sql := `SELECT func1(c1), c2 FROM http WHERE c2 / (3 + 2) ORDER BY c3`
 	//
@@ -78,26 +80,26 @@ func main() {
 	fields = append(fields, &core.Field{Name: "id", Alias: "", DataType: core.Number})
 	fields = append(fields, &core.Field{Name: "name", Alias: "", DataType: core.String})
 	fields = append(fields, &core.Field{Name: "age", Alias: "", DataType: core.Number})
-	t := &core.Table {
-		Name: "test",
-		Desc: "test",
+	t := &core.Table{
+		Name:   "test",
+		Desc:   "test",
 		Fields: fields,
 	}
 	rows := make([]*core.Row, 0, 10)
 	rows = append(rows, &core.Row{
-		Meta:t,
-		Content:[]interface{}{1, "wang", 23},
+		Meta:    t,
+		Content: []interface{}{1, "wang", 23},
 	})
 	rows = append(rows, &core.Row{
-		Meta:t,
-		Content:[]interface{}{2, "li", 19},
+		Meta:    t,
+		Content: []interface{}{2, "li", 19},
 	})
 	rows = append(rows, &core.Row{
-		Meta:t,
-		Content:[]interface{}{3, "wang", 70},
+		Meta:    t,
+		Content: []interface{}{3, "wang", 70},
 	})
 
-	task, err := NewTask("1", "SELECT SUM(age) FROM test GROUP BY 1")
+	task, err := NewTask(types.Task{}, nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return

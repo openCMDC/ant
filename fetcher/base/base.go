@@ -2,7 +2,6 @@ package base
 
 import (
 	"ant/core"
-	"ant/db"
 )
 
 type DataFetcher interface {
@@ -12,7 +11,28 @@ type DataFetcher interface {
 	Stop() error
 }
 
-type FetcherCtx struct {
-	Storage db.Interface
-	AntCtx  core.AntContext
+type FetcherBackend struct {
+	processors []RowProcessor
+}
+
+func (f *FetcherBackend) RegisterFechedRowProcessor(processor RowProcessor) {
+	f.processors = append(f.processors, processor)
+}
+
+func (f *FetcherBackend) ConsumeRows(row *core.Row) {
+	if len(f.processors) == 0 {
+		return
+	}
+	for _, processor := range f.processors {
+		processor.OnRow(row)
+	}
+}
+func NewFetcherBackend() *FetcherBackend {
+	f := new(FetcherBackend)
+	f.processors = make([]RowProcessor, 0, 10)
+	return f
+}
+
+type RowProcessor interface {
+	OnRow(row *core.Row)
 }

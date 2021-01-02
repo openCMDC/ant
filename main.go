@@ -1,16 +1,17 @@
 package main
 
 import (
-	"ant/core"
-	"ant/db"
 	"ant/fetcher"
 	_ "ant/fetcher/networkfetcher/decoder/http"
 	_ "ant/fetcher/networkfetcher/decoder/mysql"
 	_ "ant/fetcher/networkfetcher/decoder/redis"
+	remote2 "ant/remote"
+	"ant/task"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"time"
 )
 
 func init() {
@@ -23,26 +24,42 @@ func init() {
 	// 日志消息输出可以是任意的io.writer类型
 	log.SetOutput(os.Stdout)
 	// 设置日志级别为warn以上
-	log.SetLevel(log.ErrorLevel)
+	log.SetLevel(log.DebugLevel)
 }
 
 func main() {
-	antCtx := core.NewDefaultAntCtx("12132")
+	//_ := core.NewDefaultAntCtx()
 
-	store := db.NewTestStorage(antCtx)
-	err := store.StartConsume()
+	//store := db.NewTestStorage(antCtx)
+	//err := store.StartConsume()
+	//if err != nil {
+	//	log.WithError(err).Errorf("start storage failed")
+	//	return
+	//}
+	remote, err := remote2.NewFileRemote(`D:\openCMDC\ant\msgs`, 10*time.Second)
 	if err != nil {
-		log.WithError(err).Errorf("start storage failed")
-		return
+		log.WithField("error", err.Error()).Error("init remote failed")
+		os.Exit(1)
 	}
-
-	fetcherManager := fetcher.NewFetcherManager(antCtx, store)
-	//time.Sleep(time.Second * 20)
+	taskManager := task.NewTaskManager(remote)
+	fetcherManager, err := fetcher.NewFetcherManager(remote)
+	if err != nil {
+		log.WithField("error", err.Error()).Error("init fetcherManager failed")
+		os.Exit(1)
+	}
+	fetcherManager.RegisterFechedRowProcessor(taskManager)
 	err = fetcherManager.Start()
 	if err != nil {
-		log.WithError(err).Errorf("start network fetcher manager failed")
-		return
+		log.WithField("error", err.Error()).Error("init fetcherManager failed")
+		os.Exit(1)
 	}
+	//time.Sleep(time.Second * 20)
+	//err := fetcherManager.Start()
+	//if err != nil {
+	//	log.WithError(err).Errorf("start network fetcher manager failed")
+	//	return
+	//}
+
 	http.ListenAndServe("localhost:6060", nil)
 
 	//terminalChan := make(chan os.Signal)

@@ -4,33 +4,32 @@ import (
 	"ant/antlr3/execution"
 	"ant/antlr3/parser"
 	"ant/core"
+	"ant/core/types"
 	"fmt"
 	"github.com/antlr/antlr4/runtime/Go/antlr"
+	log "github.com/sirupsen/logrus"
 	"strings"
+	"sync"
+	"time"
 )
 
-type TaskType int
+type TaskRuntime struct {
+	types.Task
+	manager      *Manager
+	rowCache     []*core.Row
+	ticker       *time.Ticker
+	shutdownChan chan struct{}
 
-const SimpleSelectTask TaskType = 0
-const SimpleAggTask TaskType = 1
-const ComplexAggTask TaskType = 2
-
-type Task struct {
-	id     		string
-	sqlStr 		string
-	interval 	int //unit ms
-	table      	string
-	taskType	TaskType
-
-	selectCtx  	*parser.SelectElementsContext
-	whereCtx   	*parser.WhereClauseContext
-	groupByCtx 	*parser.GroupbyClauseContext
-	havingCtx  	*parser.HavingClauseContext
-	OrderByCtx 	*parser.OrderByClauseContext
-	limitCtx   	*parser.LimitClauseContext
+	lock       sync.RWMutex
+	selectCtx  *parser.SelectElementsContext
+	whereCtx   *parser.WhereClauseContext
+	groupByCtx *parser.GroupbyClauseContext
+	havingCtx  *parser.HavingClauseContext
+	OrderByCtx *parser.OrderByClauseContext
+	limitCtx   *parser.LimitClauseContext
 }
 
-func (t *Task) AcceptRows(rows []*core.Row) []*core.Row {
+func (t *TaskRuntime) AcceptRows(rows []*core.Row) []*core.Row {
 	if rows == nil || len(rows) == 0 {
 		return nil
 	}
@@ -47,7 +46,63 @@ func (t *Task) AcceptRows(rows []*core.Row) []*core.Row {
 	}
 }
 
-func (t *Task) processWithoutGroupBy(rows []*core.Row) []*core.Row {
+func (t *TaskRuntime) ShouldForward(row *core.Row) bool {
+	//todo
+	return false
+}
+
+func (t *TaskRuntime) AcceptRow(row *core.Row) {
+	//todo
+	if t.Status != types.Running {
+		return
+	}
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.rowCache = append(t.rowCache, row)
+}
+
+func (t *TaskRuntime) Start() {
+	t.Status = types.Running
+}
+
+func (t *TaskRuntime) Stop() {
+	t.Status = types.Stopped
+}
+
+func (t *TaskRuntime) commitResult() {
+	//todo
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+	if len(t.rowCache) == 0 {
+		//todo 上报空数据，齐全度问题
+		return
+	}
+	result := t.AcceptRows(t.rowCache)
+	if result == nil {
+		//todo 上报空数据，齐全度问题
+		return
+	}
+	t.manager.CommitTaskResult(&t.Task, result)
+}
+
+func (t *TaskRuntime) Go() {
+	go func() {
+		for {
+			select {
+			case <-t.ticker.C:
+				t.commitResult()
+			case <-t.shutdownChan:
+				log.WithField("taskName", t.Name).Debug("stop task")
+			}
+		}
+	}()
+}
+
+func (t *TaskRuntime) Close() {
+	t.shutdownChan <- struct{}{}
+}
+
+func (t *TaskRuntime) processWithoutGroupBy(rows []*core.Row) []*core.Row {
 	selectRows := make([]*core.Row, 0, 10)
 	if len(rows) == 0 {
 		return selectRows
@@ -87,7 +142,7 @@ func (t *Task) processWithoutGroupBy(rows []*core.Row) []*core.Row {
 	return selectRows
 }
 
-func (t *Task) processWithGroupBy(rows []*core.Row) []*core.Row {
+func (t *TaskRuntime) processWithGroupBy(rows []*core.Row) []*core.Row {
 	//todo group by 怎么处理
 	allCtx := t.groupByCtx.AllExpression()
 	groupByEdRows := make(map[string]*core.GroupByedRows)
@@ -180,7 +235,7 @@ func parseSelectElements2FieldArr(selectElements []parser.ISelectElementContext,
 	return fields
 }
 
-func (t *Task) doFilter(rows []*core.Row) []*core.Row {
+func (t *TaskRuntime) doFilter(rows []*core.Row) []*core.Row {
 	if t.whereCtx == nil {
 		return rows
 	}
@@ -204,7 +259,7 @@ func (t *Task) doFilter(rows []*core.Row) []*core.Row {
 	return filterdRows
 }
 
-func (t *Task) doGroupBy(rows []*core.Row) map[string]*core.GroupByedRows {
+func (t *TaskRuntime) doGroupBy(rows []*core.Row) map[string]*core.GroupByedRows {
 	if t.groupByCtx == nil {
 		return nil
 	}
@@ -238,14 +293,13 @@ func (t *Task) doGroupBy(rows []*core.Row) map[string]*core.GroupByedRows {
 	return resMap
 }
 
-func NewTask(id, sql string) (*Task, error) {
+func NewTask(task types.Task, manager *Manager) (*TaskRuntime, error) {
 
-	task := new(Task)
-	task.id = id
-	task.sqlStr = sql
+	taskRuntime := new(TaskRuntime)
+	taskRuntime.Task = task
 
 	//todo 检测sql语句是否合法
-
+	sql := task.SqlStr
 	lastValidIndex := len(sql)
 	limitIndex := strings.Index(sql, "LIMIT")
 	limitClause := ""
@@ -253,7 +307,7 @@ func NewTask(id, sql string) (*Task, error) {
 		limitClause = sql[limitIndex:lastValidIndex]
 		lastValidIndex = limitIndex
 		ast := parseAst(limitClause)
-		task.limitCtx = ast.LimitClause().(*parser.LimitClauseContext)
+		taskRuntime.limitCtx = ast.LimitClause().(*parser.LimitClauseContext)
 	}
 
 	orderByIndex := strings.Index(sql, "ORDER BY")
@@ -262,7 +316,7 @@ func NewTask(id, sql string) (*Task, error) {
 		orderByClause = sql[orderByIndex:lastValidIndex]
 		lastValidIndex = orderByIndex
 		ast := parseAst(orderByClause)
-		task.OrderByCtx = ast.OrderByClause().(*parser.OrderByClauseContext)
+		taskRuntime.OrderByCtx = ast.OrderByClause().(*parser.OrderByClauseContext)
 	}
 
 	havingIndex := strings.Index(sql, "HAVING")
@@ -271,7 +325,7 @@ func NewTask(id, sql string) (*Task, error) {
 		havingClause = sql[havingIndex:lastValidIndex]
 		lastValidIndex = havingIndex
 		ast := parseAst(havingClause)
-		task.havingCtx = ast.HavingClause().(*parser.HavingClauseContext)
+		taskRuntime.havingCtx = ast.HavingClause().(*parser.HavingClauseContext)
 	}
 
 	groupByIndex := strings.Index(sql, "GROUP BY")
@@ -280,7 +334,7 @@ func NewTask(id, sql string) (*Task, error) {
 		groupByClause = sql[groupByIndex:lastValidIndex]
 		lastValidIndex = groupByIndex
 		ast := parseAst(groupByClause)
-		task.groupByCtx = ast.GroupbyClause().(*parser.GroupbyClauseContext)
+		taskRuntime.groupByCtx = ast.GroupbyClause().(*parser.GroupbyClauseContext)
 	}
 
 	whereIndex := strings.Index(sql, "WHERE")
@@ -289,17 +343,22 @@ func NewTask(id, sql string) (*Task, error) {
 		whereClause = sql[whereIndex:lastValidIndex]
 		lastValidIndex = whereIndex
 		ast := parseAst(whereClause)
-		task.whereCtx = ast.WhereClause().(*parser.WhereClauseContext)
+		taskRuntime.whereCtx = ast.WhereClause().(*parser.WhereClauseContext)
 	}
 
 	selectClause := sql[0:lastValidIndex]
 	if len(selectClause) > 0 {
 		ast := parseAst(selectClause)
 		statmentCtx := ast.SelectStatement().(*parser.SelectStatementContext)
-		task.selectCtx = statmentCtx.SelectElements().(*parser.SelectElementsContext)
-		task.table = statmentCtx.GetTableName().GetText()
+		taskRuntime.selectCtx = statmentCtx.SelectElements().(*parser.SelectElementsContext)
+		//taskRuntime.Table = statmentCtx.GetTableName().GetText()
 	}
-	return task, nil
+
+	taskRuntime.rowCache = make([]*core.Row, 0, 128)
+	taskRuntime.ticker = time.NewTicker(time.Duration(task.Interval) * time.Second)
+	taskRuntime.shutdownChan = make(chan struct{})
+	taskRuntime.manager = manager
+	return taskRuntime, nil
 }
 
 func parseAst(str string) *parser.SqlParser {
