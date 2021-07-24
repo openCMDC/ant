@@ -106,6 +106,7 @@ func (fetcher *NetworkFetcherRuntime) InitCapture() {
 		Trace("start updateConf")
 	device := fe.DeviceName
 	bpf := fe.BpfFilter
+	//bpf := "src 106.39.170.21 or dst host 106.39.170.21"
 	la := fe.LocalAddr
 	if len(device) == 0 {
 		log.Warn("empty device name")

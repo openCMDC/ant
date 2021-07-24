@@ -5,6 +5,7 @@ import (
 	_ "ant/fetcher/networkfetcher/decoder/http"
 	_ "ant/fetcher/networkfetcher/decoder/mysql"
 	_ "ant/fetcher/networkfetcher/decoder/redis"
+	_ "ant/fetcher/networkfetcher/decoder2/http"
 	remote2 "ant/remote"
 	"ant/task"
 	log "github.com/sirupsen/logrus"
@@ -24,7 +25,7 @@ func init() {
 	// 日志消息输出可以是任意的io.writer类型
 	log.SetOutput(os.Stdout)
 	// 设置日志级别为warn以上
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.WarnLevel)
 }
 
 func main() {

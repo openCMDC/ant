@@ -15,11 +15,11 @@ type FetcherBackend struct {
 	processors []RowProcessor
 }
 
-func (f *FetcherBackend) RegisterFechedRowProcessor(processor RowProcessor) {
+func (f *FetcherBackend) RegisterRowProcessor(processor RowProcessor) {
 	f.processors = append(f.processors, processor)
 }
 
-func (f *FetcherBackend) ConsumeRows(row *core.Row) {
+func (f *FetcherBackend) ReportRow(row *core.Row) {
 	if len(f.processors) == 0 {
 		return
 	}

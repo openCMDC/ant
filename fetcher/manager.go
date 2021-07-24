@@ -16,7 +16,7 @@ func (m *Manager) Start() error {
 }
 
 func (m *Manager) RegisterFechedRowProcessor(processor base.RowProcessor) {
-	m.fetcherBackend.RegisterFechedRowProcessor(processor)
+	m.fetcherBackend.RegisterRowProcessor(processor)
 }
 
 func (m *Manager) initFetchers() error {

@@ -1,6 +1,9 @@
 package http
 
 import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"testing"
 )
 
@@ -13,9 +16,22 @@ func TestHttpReqReg(t *testing.T) {
 }
 
 func TestHttpRepReg(t *testing.T) {
-	str := `HTTP/1.1 200 OK`
-	res := checkIsHttpResponceStart(str)
-	if res != true {
-		t.Errorf("unexpected")
+	//str := `12412412414HTTP/1.1 200 OK`
+	//res := httpResponseFirstLineReg.Find([]byte(str))
+	//fmt.Println(string(res))
+	//res := checkIsHttpResponceStart(str)
+	//if res != true {
+	//	t.Errorf("unexpected")
+	//}
+	//h := make(map[int][]string)
+	//h[1] = append(h[1], "123")
+	//fmt.Println(h)
+
+	rep, err := http.Get("http://p.3.cn/prices/mgets?skuIds")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
 	}
+	bs, err := ioutil.ReadAll(rep.Body)
+	fmt.Println(string(bs))
 }

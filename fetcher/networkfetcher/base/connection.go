@@ -6,6 +6,24 @@ import (
 	"net"
 )
 
+type StreamType int8
+
+const (
+	_ StreamType = iota
+	Client2ServerStream
+	Server2ClientStream
+)
+
+func (t StreamType) String() string {
+	if t == Client2ServerStream {
+		return "Client2ServerStream"
+	} else if t == Server2ClientStream {
+		return "Server2ClientStream"
+	} else {
+		return "unKnown stream type"
+	}
+}
+
 type TCPConn struct {
 	clientAddr          *net.TCPAddr
 	serverAddr          *net.TCPAddr

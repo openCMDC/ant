@@ -24,20 +24,34 @@ func (sf *DefaultStreamFactory) New(netLayer, transLayer gopacket.Flow) tcpassem
 	ca, sa, st, err := sf.GetInfo(netLayer, transLayer)
 	if err != nil {
 		log.WithField("errMsg", err.Error()).Warn("stream factory produce a invalid reader")
+		go func() {
+			buffer := make([]byte, 10)
+			for {
+				_, err := reader.Read(buffer)
+				if err != nil {
+					break
+				}
+			}
+		}()
 		return &reader
 	}
-	endPoint, ok := sf.serverEndpoints.Load(sa.String())
-	if !ok {
-		conn := base.NewTCPConn(ca, sa, nil, nil)
-		endPoint = NewServerEndpoint(conn, sf.capture.FetcherCtx)
-		sf.serverEndpoints.Store(sa.String(), endPoint)
-	}
-	ep := endPoint.(*ServerEndPoint)
-	ep.AddStream(ca, sa, &reader, st)
+	dc := base.NewDecider(ca, sa, st, &reader, sf.capture.FetcherCtx)
+	go func() {
+		dc.StartDecode()
+	}()
+	//endPoint, ok := sf.serverEndpoints.Load(sa.String())
+	//if !ok {
+	//	conn := base.NewTCPConn(ca, sa, nil, nil)
+	//	endPoint = NewServerEndpoint(conn, sf.capture.FetcherCtx)
+	//	sf.serverEndpoints.Store(sa.String(), endPoint)
+	//}
+	//
+	//ep := endPoint.(*ServerEndPoint)
+	//ep.AddStream(ca, sa, &reader, st)
 	return &reader
 }
 
-func (sf *DefaultStreamFactory) GetInfo(netLayer, transLayer gopacket.Flow) (cAddr, sAddr *net.TCPAddr, st StreamType, err error) {
+func (sf *DefaultStreamFactory) GetInfo(netLayer, transLayer gopacket.Flow) (cAddr, sAddr *net.TCPAddr, st base.StreamType, err error) {
 	tcpStr := fmt.Sprintf("%s:%s", netLayer.Src().String(), transLayer.Src().String())
 	srcAddr, err := net.ResolveTCPAddr("tcp", tcpStr)
 	if err != nil {
@@ -57,9 +71,9 @@ func (sf *DefaultStreamFactory) GetInfo(netLayer, transLayer gopacket.Flow) (cAd
 			fmt.Errorf("can't distinguish server and client between {%s} {%s} by clues {%s}", clientAddr, serverAddr, sf.capture.ListeningAddr)
 	}
 	if clientAddr == srcAddr {
-		st = Client2ServerStream
+		st = base.Client2ServerStream
 	} else {
-		st = Server2ClientStream
+		st = base.Server2ClientStream
 	}
 	return clientAddr, serverAddr, st, nil
 }

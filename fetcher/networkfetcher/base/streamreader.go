@@ -6,6 +6,7 @@ import (
 	"github.com/google/gopacket/tcpassembly"
 	log "github.com/sirupsen/logrus"
 	"io"
+	"time"
 )
 
 type StreamReader struct {
@@ -99,6 +100,45 @@ func (r *StreamReader) Read(p []byte) (int, error) {
 		return length, nil
 	}
 	return 0, io.EOF
+}
+
+func (r *StreamReader) Read2(p []byte) (int, time.Time, error) {
+	if !r.initiated {
+		panic("ReaderStream not created via NewReaderStream")
+	}
+	var ok bool
+	r.stripEmpty()
+	for !r.closed && len(r.current) == 0 {
+		if r.first {
+			r.first = false
+		} else {
+			r.done <- true
+		}
+		if r.current, ok = <-r.reassembled; ok {
+			r.stripEmpty()
+		} else {
+			r.closed = true
+		}
+	}
+	if len(r.current) > 0 {
+		current := &r.current[0]
+		if r.LossErrors && !r.lossReported && current.Skip != 0 {
+			r.lossReported = true
+			return 0, time.Time{}, DataLost
+		}
+		length := copy(p, current.Bytes)
+		current.Bytes = current.Bytes[length:]
+		return length, current.Seen, nil
+	}
+	return 0, time.Time{}, io.EOF
+}
+
+func (r *StreamReader) LastPackageTime() time.Time {
+	if len(r.current) > 0 {
+		return r.current[0].Seen
+	} else {
+		return time.Time{}
+	}
 }
 
 // Close implements io.Closer's Close function, making ReaderStream a
